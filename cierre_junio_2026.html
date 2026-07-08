@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almarena CDE — Cierre de Mes Junio 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { font-family: 'Inter', sans-serif; }
+  body { background: #fdf5f5; }
+  .kpi-card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(250,87,95,.08); transition:transform .15s; }
+  .kpi-card:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(250,87,95,.18); }
+  .chart-card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(250,87,95,.08); }
+  .narrative { background:linear-gradient(135deg,#fff5f5,#fff0f0); border-left:4px solid #FA575F; border-radius:0 8px 8px 0; }
+  .badge-up   { background:#d1fae5; color:#065f46; border-radius:20px; padding:2px 10px; font-size:.75rem; font-weight:700; }
+  .badge-dn   { background:#fee2e2; color:#991b1b; border-radius:20px; padding:2px 10px; font-size:.75rem; font-weight:700; }
+  .badge-neu  { background:#fef3c7; color:#92400e; border-radius:20px; padding:2px 10px; font-size:.75rem; font-weight:700; }
+  .filter-btn { border-radius:20px; padding:5px 16px; font-size:.78rem; font-weight:600; cursor:pointer; border:2px solid transparent; transition:all .15s; }
+  .filter-btn.active { background:#FA575F; color:#fff; border-color:#FA575F; }
+  .filter-btn:not(.active) { background:#fff; color:#FA575F; border-color:#fca5a8; }
+  .section-title { font-size:1rem; font-weight:700; color:#0f2540; letter-spacing:.02em; text-transform:uppercase; }
+  .infl-badge { background:#fff5f5; border:1px solid #FA575F; color:#c0272d; border-radius:6px; padding:2px 8px; font-size:.7rem; font-weight:700; }
+  .data-note  { font-size:.7rem; color:#94a3b8; font-style:italic; }
+  canvas { max-height:310px; }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+<header style="background:#0f2540;border-bottom:3px solid #FA575F" class="text-white px-6 py-4 sticky top-0 z-50 shadow-xl">
+  <div class="max-w-screen-2xl mx-auto flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <div class="flex items-center gap-3">
+        <span class="text-2xl font-black tracking-tight" style="color:#FA575F">ALMARENA</span>
+        <span class="text-xs border border-white/30 rounded px-2 py-0.5 text-white/60">COSTA DEL ESTE · 59 hab.</span>
+      </div>
+      <div class="text-xs text-white/50 mt-0.5">Cierre de Mes · Junio 2026 vs Junio 2025</div>
+    </div>
+  </div>
+</header>
+
+<!-- ══ FILTROS ══════════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 pt-5 pb-2 flex flex-wrap items-center gap-2">
+  <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Comparar vs:</span>
+  <button class="filter-btn active" id="btnLY"  onclick="setComp('ly',this)">2025 nominal</button>
+  <button class="filter-btn"        id="btnInf" onclick="setComp('inf',this)">2025 ajustado inflación</button>
+  <span class="infl-badge ml-auto">Factor inflación Jun: ×1.335 (estimado — IPC oficial jun25-may26 ×1.3107 + proyección privada jun26 ~1.85%, pendiente confirmación INDEC ~14/jul/2026)</span>
+</div>
+
+<!-- ══ KPI CARDS ════════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 pt-3 pb-2">
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" id="kpiGrid"></div>
+</div>
+
+<!-- ══ NARRATIVE 1 ══════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-2">
+  <div class="narrative p-4"><p class="text-sm text-slate-700 leading-relaxed" id="narrativeKpi"></p></div>
+</div>
+
+<!-- ══ ROW 1: Revenue + OCC/ADR ═══════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-3 grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Room Revenue — Junio</span>
+      <span class="text-xs text-slate-400">ARS millones</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Room Revenue 2026 real · 2025 nominal · 2025 ajustado por inflación</p>
+    <canvas id="cRevenue"></canvas>
+  </div>
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Ocupación & ADR</span>
+      <span class="text-xs text-slate-400">OCC % · ADR ARS</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Junio 2026 vs Junio 2025</p>
+    <canvas id="cOccAdr"></canvas>
+  </div>
+</div>
+
+<!-- ══ NARRATIVE 2 ══════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-1">
+  <div class="narrative p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">🗓 Junio 2026 — Volumen y ocupación</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>📍 Room Nights <strong>491</strong> vs 573 en 2025 (<strong>–82 RN · –14.3%</strong>) — ya neto de 7 noches canceladas que el K011 seguía contando</li>
+        <li>📍 Ocupación <strong>27.7%</strong> vs 32.4% en 2025 (<strong>–4.6 pp</strong>)</li>
+        <li>📍 Room Revenue <strong>$66,7M</strong> vs $70,5M nominal (<strong>–5.4%</strong>)</li>
+        <li>⚠️ La caída de volumen (RN) es la principal explicación de la baja de revenue, parcialmente compensada por suba de ADR</li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">🗓 Junio 2026 — Mix y canal</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>📈 Booking.com: 26 RN (2025) → <strong>103 RN (2026) (+296%)</strong> — mismo patrón de crecimiento OTA que el trimestre anterior</li>
+        <li>⚠️ WhatsApp <strong>–42%</strong> (255→148 RN) y Teléfono <strong>–58.3%</strong> (103→43 RN) — los canales de contacto directo son los que más cayeron</li>
+        <li>✅ Sitio Web (motor propio): 65→51 RN (<strong>–21.5%</strong>) — caída moderada, no crítica</li>
+        <li>🏆 Único grupo del mes: <strong>Bettina Alba / Refugio de Comadres</strong> (17 RN, 25–28/jun) — sin grupos en junio 2025</li>
+        <li>📌 Comisión Booking.com jun-2026 aún no facturada (ciclo de facturación no cerrado) — se incorpora en el próximo corte</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ROW 2: RevPAR + Inflación ══════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-3 grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">RevPAR — Junio</span>
+      <span class="infl-badge">2026 vs 2025</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Room Revenue por habitación disponible — 59 habitaciones</p>
+    <canvas id="cRevpar"></canvas>
+  </div>
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">ADR Ajustado por Inflación</span>
+      <span class="infl-badge">Poder adquisitivo real</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">ADR 2025 actualizado al valor de pesos 2026</p>
+    <canvas id="cInflacion"></canvas>
+  </div>
+</div>
+
+<!-- ══ NARRATIVE 3 ══════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-1">
+  <div class="narrative p-4">
+    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">RevPAR & ADR — erosión real</p>
+    <ul class="text-sm text-slate-700 space-y-1 list-none">
+      <li>📍 ADR nominal subió <strong>+10.4%</strong> ($122.955 → $135.753) pero ajustado por inflación cayó <strong>–17.3%</strong> (vs $164.144 equivalente)</li>
+      <li>📉 RevPAR real: <strong>–29.1%</strong> ($37.658 vs $53.138 ajustado) — combina menor ocupación (–4.6pp) y pérdida de poder adquisitivo del ADR</li>
+      <li>⚠️ <strong>El aumento tarifario en pesos no compensó la inflación del período</strong> — mismo patrón que se observó en el trimestre Mar–May 2026</li>
+      <li>📌 Factor de inflación de este cierre es una proyección (×1.335); se actualizará con el dato oficial INDEC de junio (~14/jul/2026)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══ ROW 3: Canal + Promo ════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-3 grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Noches por Canal de Origen</span>
+      <span class="text-xs text-slate-400">RN Junio · 2026 vs 2025</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Fuente: reservas cruzadas B006+B008 (Chiara), excl. House Use y 7 noches canceladas — 547 RN 2025 / 444 RN 2026</p>
+    <canvas id="cCanal"></canvas>
+  </div>
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Noches por Promoción</span>
+      <span class="text-xs text-slate-400">RN Junio 2026</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Desglose de códigos de tarifa/promo (B008) — 2025 no tenía parametrización por promo, solo por canal</p>
+    <canvas id="cPromo"></canvas>
+  </div>
+</div>
+
+<!-- ══ NARRATIVE 4 ══════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-1">
+  <div class="narrative p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Mix de canales</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>⚠️ Canal directo total (WhatsApp+Teléfono+Sitio Web+Email+Walk In+Instagram) bajó de <strong>482 RN (88.1% del mix)</strong> a <strong>297 RN (66.9%)</strong></li>
+        <li>📉 WhatsApp y Teléfono explican casi toda la caída: juntos pasaron de 358 RN a 191 RN (<strong>–167 RN</strong>)</li>
+        <li>📈 Booking.com ganó peso relativo: 4.8% (2025) → <strong>23.2% (2026)</strong> del total de noches</li>
+        <li>✅ Almarena (House Use/cortesías) creció de 14 a 25 RN (+78.6%) — mayor actividad operativa/comercial en el hotel</li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Estrategia promocional 2026</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>📍 Promo Bosque 10%: <strong>134 RN</strong> — mayor volumen del mes, por lejos</li>
+        <li>📍 Last Minute: <strong>39 RN</strong> · Promo Mar 20%: <strong>32 RN</strong> · Full: <strong>23 RN</strong></li>
+        <li>📍 Iguala Tarifa OTA: <strong>19 RN</strong> — estrategia de retención frente a Booking.com</li>
+        <li>🏆 Bettina Alba (grupo "Refugio de Comadres"): <strong>17 RN</strong> — único grupo del mes</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ANÁLISIS BOOKING.COM ═══════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 pt-4 pb-1">
+  <div class="flex items-center gap-3 px-1">
+    <span class="section-title">Análisis Booking.com — Canal OTA</span>
+    <span class="infl-badge">Fuente: Facturas Booking.com junio 2025 y junio 2026 · Tasa comisión 15%</span>
+  </div>
+</div>
+<div class="max-w-screen-2xl mx-auto px-6 pb-2 pt-3">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="bookingKpiGrid"></div>
+</div>
+<div class="max-w-screen-2xl mx-auto px-6 py-2 grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Producción Booking.com (USD)</span>
+      <span class="text-xs text-slate-400">2026 vs 2025</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Coral = ingreso neto (85%) · Teal = comisión (15%)</p>
+    <canvas id="cBookingProd"></canvas>
+  </div>
+  <div class="chart-card p-5">
+    <div class="flex items-center justify-between mb-1">
+      <span class="section-title">Comisión ARS — Costo Real</span>
+      <span class="infl-badge">Ajustado IPC</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Comisión 2026 vs 2025 nominal y 2025 ajustado por IPC (pesos equivalentes 2026)</p>
+    <canvas id="cBookingCom"></canvas>
+  </div>
+</div>
+<div class="max-w-screen-2xl mx-auto px-6 py-1">
+  <div class="narrative p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Volumen y producción USD</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>📍 Producción USD 2026: <strong>USD 8.365,96</strong> vs USD 4.018,22 en 2025 (<strong>+108,2%</strong>)</li>
+        <li>📍 Neto después de comisión: <strong>USD 7.111,03</strong> vs USD 3.415,49 en 2025 (+108,2%)</li>
+        <li>✅ Tasa de comisión: <strong>15,00% exacto</strong> — constante en ambos años</li>
+        <li>📍 TC promedio: $1.190,53 (2025) → <strong>$1.481,72 (2026)</strong> (+24,5% depreciación)</li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Costo comisión ARS</p>
+      <ul class="text-sm text-slate-700 space-y-1 list-none">
+        <li>📍 Comisión ARS 2025: <strong>$717.570</strong> · 2025 ajust. IPC: <strong>$957.956</strong></li>
+        <li>📍 Comisión ARS 2026 real: <strong>$1.859.459</strong> (<strong>+159,1%</strong> nominal vs 2025)</li>
+        <li>⚠️ Incremento real sobre IPC: <strong>+$901.503 ARS (+94,1% real)</strong></li>
+        <li>✅ El costo extra es consistente con el crecimiento de volumen (+108%) más la devaluación — no por cambio de tasa</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TABLA RESUMEN ════════════════════════════════════════════════ -->
+<div class="max-w-screen-2xl mx-auto px-6 py-3">
+  <div class="chart-card p-5">
+    <span class="section-title block mb-4">Resumen Ejecutivo — Junio 2026 vs Junio 2025</span>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="background:#0f2540;border-bottom:2px solid #FA575F" class="text-white">
+            <th class="px-4 py-3 text-left rounded-tl-lg">Métrica</th>
+            <th class="px-4 py-3 text-right">Jun 2026</th>
+            <th class="px-4 py-3 text-right">Jun 2025</th>
+            <th class="px-4 py-3 text-right" style="color:#fc8287">Δ% nominal</th>
+            <th class="px-4 py-3 text-right rounded-tr-lg" style="color:#fc8287">Δ% real (ajust. infl.)</th>
+          </tr>
+        </thead>
+        <tbody id="resumenBody"></tbody>
+      </table>
+    </div>
+    <p class="data-note mt-3">Fuente: Reportes K011 "Projection Report" (ARS) junio 2025 y junio 2026 · Reservations by Origin (B008) junio 2025 y junio 2026, cruzado con B006 · listado histórico de grupos. Factor de inflación IPC nacional (datos.gob.ar / INDEC) jun25–may26 oficial + proyección jun26.</p>
+  </div>
+</div>
+
+<footer style="background:#0f2540;border-top:3px solid #FA575F" class="text-white/40 text-xs text-center py-4 mt-6">
+  Almarena Costa del Este · Revenue Management · Cierre de Mes Junio 2026 vs 2025 · <span id="footerDate"></span>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// DATOS
+// ══════════════════════════════════════════════════════════════════
+const D = {
+  // RN 2026 corregido: 498 (K011) - 7 noches de reservas Booking.com canceladas
+  // que el K011 seguía contando como ocupadas (verificado por Chiara, 2/7 fechas 05-08/jun)
+  cur: { rev: 66654895.87, adr: 135753.35, rn: 491, occ: 27.74, revpar: 37658.13 },
+  ly:  { rev: 70452381.56, adr: 122953.55, rn: 573, occ: 32.37, revpar: 39803.61,
+         revAdj: 94053929.38, adrAdj: 164144.39, revparAdj: 53137.82 },
+  inflFactor: 1.335,
+
+  // Canal y Promo: fuente "Datos reservas - Informe junio 26.xlsx" (Chiara),
+  // cruzado B006+B008, excluye House Use y las 7 noches canceladas
+  canal: {
+    labels: ['WhatsApp','Teléfono','Sitio Web (propio)','Booking.com','Almarena (House Use)','E-Mail','Walk In','Instagram','Otros'],
+    v2025: [255, 103, 65, 26, 14, 30, 26, 3, 25],
+    v2026: [148, 43, 51, 103, 25, 15, 33, 7, 19],
+  },
+  promo2026: {
+    labels: ['Promo Bosque 10%','Booking.com','Last Minute','Promo Mar 20%','Full','Iguala Tarifa OTA','Bettina Alba (Grupo)','Finde Largo Junio','BookOnlineNow','Experiencia Bienestar','2x1 Mundial','3x2','2x1 Hotsale','Descuento Especial','Familiares & Amigos','Finde Día del Padre','Travel Services','Voucher Papi','Otros'],
+    total: [134, 94, 39, 32, 23, 19, 17, 15, 8, 8, 7, 7, 6, 5, 4, 3, 3, 3, 17],
+  },
+
+  // Facturas Booking.com junio 2025 y junio 2026
+  booking: {
+    ventasUSD2025: 4018.22, comUSD2025: 602.73, comARS2025: 717569.79, tc2025: 1190.53272961,
+    ventasUSD2026: 8365.96, comUSD2026: 1254.93, comARS2026: 1859458.61, tc2026: 1481.72297137,
+  }
+};
+
+let compMode = 'ly';
+let CHARTS = {};
+Chart.register(ChartDataLabels);
+
+const DC = { v2026:'#FA575F', v2025:'#0f2540', vAdj:'#0d7377' };
+function rgba(hex,a){ const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
+
+function fmt(v,t='ars'){
+  if(t==='M')  return '$'+( v/1e6).toFixed(1)+'M';
+  if(t==='k')  return '$'+(v/1000).toFixed(0)+'k';
+  if(t==='pct')return v.toFixed(1)+'%';
+  if(t==='rn') return v.toLocaleString('es-AR');
+  return '$'+Number(v).toLocaleString('es-AR');
+}
+function diff(a,b){ return ((a-b)/b*100); }
+function badge(d){ const s=d>=0?'▲':'▼',cl=d>=0?'badge-up':'badge-dn'; return `<span class="${cl}">${s} ${Math.abs(d).toFixed(1)}%</span>`; }
+function badgePp(d){ const s=d>=0?'+':'',cl=d>=0?'badge-up':'badge-dn'; return `<span class="${cl}">${s}${d.toFixed(1)} pp</span>`; }
+function getLY_rev(){ return compMode==='inf' ? D.ly.revAdj : D.ly.rev; }
+function getLY_adr(){ return compMode==='inf' ? D.ly.adrAdj : D.ly.adr; }
+function getLY_revpar(){ return compMode==='inf' ? D.ly.revparAdj : D.ly.revpar; }
+function compLabel(){ return compMode==='inf' ? '2025 ajust. infl.' : '2025 nominal'; }
+
+const baseOpts = { responsive:true, maintainAspectRatio:true,
+  plugins:{ legend:{labels:{font:{size:11},boxWidth:12}},
+    tooltip:{cornerRadius:8,padding:10,boxPadding:4,titleFont:{size:12},bodyFont:{size:11}},
+    datalabels:{display:false} },
+  scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'#f1f5f9'},ticks:{font:{size:11}}} } };
+function dc(id){ if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];} }
+
+// ══════════════════════════════════════════════════════════════════
+// KPI CARDS
+// ══════════════════════════════════════════════════════════════════
+function buildKPIs(){
+  const rev26=D.cur.rev, revLY=getLY_rev(), occ26=D.cur.occ, occLY=D.ly.occ;
+  const adr26=D.cur.adr, adrLY=getLY_adr(), rp26=D.cur.revpar, rpLY=getLY_revpar();
+  const rn26=D.cur.rn, rnLY=D.ly.rn;
+
+  const kpis = [
+    { icon:'💰', label:'Room Revenue',   val:fmt(rev26,'M'), sub:`${compLabel()}: ${fmt(revLY,'M')}`, bd:badge(diff(rev26,revLY)), borderColor:'border-rose-400' },
+    { icon:'🛏️', label:'Ocupación',      val:fmt(occ26,'pct'), sub:`2025: ${fmt(occLY,'pct')}`, bd:badgePp(occ26-occLY), borderColor:'border-blue-500' },
+    { icon:'📊', label:'RevPAR',         val:fmt(rp26,'k'),  sub:`${compLabel()}: ${fmt(rpLY,'k')}`,   bd:badge(diff(rp26,rpLY)), borderColor:'border-teal-500' },
+    { icon:'🏷️', label:'ADR',            val:fmt(adr26,'k'), sub:`${compLabel()}: ${fmt(adrLY,'k')}`,  bd:badge(diff(adr26,adrLY)), borderColor:'border-purple-500' },
+    { icon:'🛎️', label:'Room Nights',    val:fmt(rn26,'rn')+'  RN', sub:`2025: ${fmt(rnLY,'rn')} RN`, bd:badge(diff(rn26,rnLY)), borderColor:'border-red-500' },
+  ];
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k=>`
+    <div class="kpi-card p-4 border-l-4 ${k.borderColor}">
+      <div class="flex items-start justify-between mb-1"><span class="text-xl">${k.icon}</span>${k.bd}</div>
+      <div class="text-2xl font-black text-slate-800 mt-1 leading-tight">${k.val}</div>
+      <div class="text-xs font-semibold text-slate-500 mt-0.5">${k.label}</div>
+      <div class="text-xs text-slate-400 mt-1">${k.sub}</div>
+    </div>`).join('');
+
+  const dRev=diff(rev26,revLY), dOcc=occ26-occLY, dRN=diff(rn26,rnLY);
+  document.getElementById('narrativeKpi').innerHTML =
+    `<strong>Resultado Junio 2026 vs ${compLabel()}:</strong> ` +
+    `Room Revenue <strong>${fmt(rev26,'M')}</strong> <span class="${dRev>=0?'text-green-700':'text-red-700'} font-bold">(${dRev>=0?'▲':'▼'} ${Math.abs(dRev).toFixed(1)}%)</span>. ` +
+    `Ocupación <strong>${fmt(occ26,'pct')}</strong> <span class="${dOcc>=0?'text-green-700':'text-red-700'} font-bold">(${dOcc>=0?'+':''}${dOcc.toFixed(1)} pp)</span>. ` +
+    `ADR <strong>${fmt(adr26,'k')}</strong>. RevPAR <strong>${fmt(rp26,'k')}</strong>. ` +
+    `Room Nights <strong>${fmt(rn26,'rn')}</strong> <span class="${dRN>=0?'text-green-700':'text-red-700'} font-bold">(${dRN>=0?'▲':'▼'} ${Math.abs(dRN).toFixed(1)}%)</span>.`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GRÁFICOS
+// ══════════════════════════════════════════════════════════════════
+function buildRevenue(){
+  dc('rev');
+  CHARTS['rev'] = new Chart(document.getElementById('cRevenue'),{
+    type:'bar', data:{labels:['Junio'], datasets:[
+      {label:'Room Revenue 2026', data:[D.cur.rev/1e6],
+        backgroundColor:rgba(DC.v2026,.85), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(1)+'M'}},
+      {label:'Room Revenue 2025 nominal', data:[D.ly.rev/1e6],
+        backgroundColor:rgba(DC.v2025,.25), borderWidth:2, borderColor:DC.v2025, borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(1)+'M'}},
+      {label:'Room Revenue 2025 ajust.', data:[D.ly.revAdj/1e6],
+        backgroundColor:rgba(DC.vAdj,.55), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(1)+'M'}},
+    ]},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.raw.toFixed(1)}M`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'$'+v+'M',font:{size:11}}}}}
+  });
+}
+
+function buildOccAdr(){
+  dc('oa');
+  const datasets = [
+    {label:'OCC% 2026', data:[D.cur.occ], backgroundColor:rgba(DC.v2026,.85), borderRadius:5, yAxisID:'y',
+      datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>v.toFixed(1)+'%'}},
+    {label:'OCC% 2025', data:[D.ly.occ], backgroundColor:rgba(DC.v2025,.25), borderWidth:2, borderColor:DC.v2025, borderRadius:5, yAxisID:'y',
+      datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>v.toFixed(1)+'%'}},
+    {label:'ADR 2026 ($k)', data:[D.cur.adr/1000], backgroundColor:rgba(DC.vAdj,.82), borderRadius:5, yAxisID:'y2', datalabels:{display:false}},
+    {label:'ADR 2025 nominal ($k)', data:[D.ly.adr/1000], backgroundColor:rgba(DC.vAdj,.28), borderWidth:2, borderColor:DC.vAdj, borderRadius:5, yAxisID:'y2', datalabels:{display:false}},
+  ];
+  if(compMode==='inf') datasets.push(
+    {label:'ADR 2025 ajust. infl. ($k)', data:[D.ly.adrAdj/1000], backgroundColor:rgba(DC.v2025,.55), borderRadius:5, yAxisID:'y2', datalabels:{display:false}}
+  );
+  CHARTS['oa'] = new Chart(document.getElementById('cOccAdr'),{
+    type:'bar', data:{labels:['Junio'], datasets},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip, mode:'index', intersect:false,
+        callbacks:{label:ctx=>ctx.dataset.yAxisID==='y'?`${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%`:`${ctx.dataset.label}: $${(ctx.raw*1000).toLocaleString('es-AR')}`}}},
+      scales:{
+        x:{grid:{display:false}, ticks:{font:{size:11}}},
+        y:{position:'left', grid:{color:'#f1f5f9'}, title:{display:true,text:'OCC %',font:{size:10}}, ticks:{callback:v=>v+'%',font:{size:10}}},
+        y2:{position:'right', grid:{display:false}, title:{display:true,text:'ADR $k',font:{size:10}}, ticks:{callback:v=>'$'+v+'k',font:{size:10}}}
+      }}
+  });
+}
+
+function buildRevpar(){
+  dc('rp');
+  CHARTS['rp'] = new Chart(document.getElementById('cRevpar'),{
+    type:'bar', data:{labels:['Junio'], datasets:[
+      {label:'RevPAR 2026', data:[D.cur.revpar/1000],
+        backgroundColor:rgba(DC.v2026,.85), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(0)+'k'}},
+      {label:`RevPAR ${compLabel()}`, data:[getLY_revpar()/1000],
+        backgroundColor:compMode==='inf'?rgba(DC.vAdj,.55):rgba(DC.v2025,.25),
+        borderWidth:2, borderColor:compMode==='inf'?DC.vAdj:DC.v2025, borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(0)+'k'}},
+    ]},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip,callbacks:{label:ctx=>`${ctx.dataset.label}: $${(ctx.raw*1000).toLocaleString('es-AR')}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'$'+v+'k',font:{size:11}}}}}
+  });
+}
+
+function buildInflacion(){
+  dc('inf');
+  CHARTS['inf'] = new Chart(document.getElementById('cInflacion'),{
+    type:'bar', data:{labels:['Junio'], datasets:[
+      {label:'ADR 2026 real', data:[D.cur.adr/1000],
+        backgroundColor:rgba(DC.v2026,.85), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(0)+'k'}},
+      {label:'ADR 2025 nominal', data:[D.ly.adr/1000],
+        backgroundColor:rgba(DC.v2025,.25), borderWidth:2, borderColor:DC.v2025, borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(0)+'k'}},
+      {label:'ADR 2025 ajust. inflación', data:[D.ly.adrAdj/1000],
+        backgroundColor:rgba(DC.vAdj,.65), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(0)+'k'}},
+    ]},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip, mode:'index', intersect:false,
+        callbacks:{label:ctx=>`${ctx.dataset.label}: $${(ctx.raw*1000).toLocaleString('es-AR')}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'$'+v+'k',font:{size:11}}}}}
+  });
+}
+
+function buildCanal(){
+  dc('can');
+  CHARTS['can'] = new Chart(document.getElementById('cCanal'),{
+    type:'bar',
+    data:{labels:D.canal.labels, datasets:[
+      {label:'RN 2026', data:D.canal.v2026, backgroundColor:rgba(DC.v2026,.85), borderRadius:6},
+      {label:'RN 2025', data:D.canal.v2025, backgroundColor:rgba(DC.v2025,.25), borderWidth:2, borderColor:DC.v2025, borderRadius:6},
+    ]},
+    options:{...baseOpts, indexAxis:'y',
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip,callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw} RN`}}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{font:{size:11}}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+}
+
+function buildPromo(){
+  dc('pro');
+  const PCOLS=['#0d7377','#0f2540','#2563eb','#c9952a','#7c3aed','#059669','#ea580c','#db2777','#FA575F','#f59e0b','#64748b','#14a085','#94a3b8','#0891b2','#a16207','#65a30d','#be185d','#1e3a8a','#b91c1c'];
+  CHARTS['pro'] = new Chart(document.getElementById('cPromo'),{
+    type:'doughnut',
+    data:{labels:D.promo2026.labels, datasets:[{
+      data:D.promo2026.total, backgroundColor:PCOLS.map(c=>rgba(c,.85)),
+      borderWidth:2, borderColor:'#fff', hoverOffset:8
+    }]},
+    options:{responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10,padding:6}},
+        tooltip:{callbacks:{label:ctx=>{
+          const total=D.promo2026.total.reduce((a,b)=>a+b,0);
+          return `${ctx.label}: ${ctx.raw} RN (${(ctx.raw/total*100).toFixed(1)}%)`;
+        }}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BOOKING.COM
+// ══════════════════════════════════════════════════════════════════
+function buildBookingAnalisis(){
+  const b = D.booking;
+  const comARS25Adj = b.comARS2025 * D.inflFactor;
+  const incReal = b.comARS2026 - comARS25Adj;
+
+  const kpis=[
+    {icon:'💰', label:'Producción USD 2026', val:'USD '+b.ventasUSD2026.toLocaleString('es-AR',{minimumFractionDigits:2}), sub:'2025: USD '+b.ventasUSD2025.toLocaleString('es-AR',{minimumFractionDigits:2}), bd:badge(diff(b.ventasUSD2026,b.ventasUSD2025))},
+    {icon:'🧾', label:'Comisión ARS 2026',   val:'$'+(b.comARS2026/1e6).toFixed(2)+'M', sub:'2025: $'+(b.comARS2025/1e6).toFixed(2)+'M', bd:badge(diff(b.comARS2026,b.comARS2025))},
+    {icon:'📊', label:'Tasa de comisión',    val:'15,00%', sub:'Constante 2025 y 2026', bd:`<span class="badge-neu">Sin cambio</span>`},
+    {icon:'⚖️', label:'Costo real incremental', val:'$'+(incReal/1e6).toFixed(2)+'M', sub:'vs 2025 ajust. IPC: $'+(comARS25Adj/1e6).toFixed(2)+'M', bd:`<span class="badge-dn">▲ ${(incReal/comARS25Adj*100).toFixed(0)}% real</span>`},
+  ];
+  document.getElementById('bookingKpiGrid').innerHTML=kpis.map(k=>`
+    <div class="kpi-card p-4 border-l-4 border-rose-400">
+      <div class="flex items-start justify-between mb-1"><span class="text-xl">${k.icon}</span>${k.bd}</div>
+      <div class="text-2xl font-black text-slate-800 mt-1">${k.val}</div>
+      <div class="text-xs font-semibold text-slate-500 mt-0.5">${k.label}</div>
+      <div class="text-xs text-slate-400 mt-1">${k.sub}</div>
+    </div>`).join('');
+
+  dc('bkP');
+  CHARTS['bkP']=new Chart(document.getElementById('cBookingProd'),{
+    type:'bar',
+    data:{labels:['Junio'], datasets:[
+      {label:'Ingreso neto 2026 (USD)', data:[+(b.ventasUSD2026-b.comUSD2026).toFixed(2)],
+        backgroundColor:rgba(DC.v2026,.85), stack:'2026', borderRadius:4,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:10,weight:'700'}, formatter:()=>'USD '+b.ventasUSD2026.toLocaleString('es-AR',{maximumFractionDigits:0})}},
+      {label:'Comisión 2026 (USD)', data:[+b.comUSD2026.toFixed(2)],
+        backgroundColor:rgba(DC.vAdj,.85), stack:'2026', datalabels:{display:false}},
+      {label:'Ingreso neto 2025 (USD)', data:[+(b.ventasUSD2025-b.comUSD2025).toFixed(2)],
+        backgroundColor:rgba(DC.v2025,.3), borderWidth:2, borderColor:DC.v2025, stack:'2025', borderRadius:4, datalabels:{display:false}},
+      {label:'Comisión 2025 (USD)', data:[+b.comUSD2025.toFixed(2)],
+        backgroundColor:rgba(DC.vAdj,.25), borderWidth:2, borderColor:DC.vAdj, stack:'2025', datalabels:{display:false}},
+    ]},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip, mode:'stack', intersect:false,
+        callbacks:{label:ctx=>`${ctx.dataset.label}: USD ${ctx.raw.toLocaleString('en-US',{minimumFractionDigits:2})}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}},stacked:true},
+        y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'USD '+v.toLocaleString('en-US'),font:{size:11}},stacked:true}}}
+  });
+
+  dc('bkC');
+  CHARTS['bkC']=new Chart(document.getElementById('cBookingCom'),{
+    type:'bar',
+    data:{labels:['Junio'], datasets:[
+      {label:'Comisión ARS 2026 real', data:[+(b.comARS2026/1e6).toFixed(3)],
+        backgroundColor:rgba(DC.v2026,.85), borderRadius:6,
+        datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(2)+'M'}},
+      {label:'Comisión ARS 2025 ajust. IPC', data:[+(comARS25Adj/1e6).toFixed(3)],
+        backgroundColor:rgba(DC.vAdj,.65), borderRadius:6, datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(2)+'M'}},
+      {label:'Comisión ARS 2025 nominal', data:[+(b.comARS2025/1e6).toFixed(3)],
+        backgroundColor:rgba(DC.v2025,.25), borderWidth:2, borderColor:DC.v2025, borderRadius:6, datalabels:{display:true, anchor:'end', align:'end', color:'#0f2540', font:{size:11,weight:'700'}, formatter:v=>'$'+v.toFixed(2)+'M'}},
+    ]},
+    options:{...baseOpts,
+      plugins:{...baseOpts.plugins, tooltip:{...baseOpts.plugins.tooltip, mode:'index', intersect:false,
+        callbacks:{label:ctx=>`${ctx.dataset.label}: $${(ctx.raw*1e6).toLocaleString('es-AR')}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'$'+v.toFixed(1)+'M',font:{size:11}}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TABLA RESUMEN
+// ══════════════════════════════════════════════════════════════════
+function buildTabla(){
+  const rows=[
+    {label:'OCC %',        v26:D.cur.occ,    v25:D.ly.occ,    v25adj:null,           fmt:'pct'},
+    {label:'Room Nights',  v26:D.cur.rn,     v25:D.ly.rn,     v25adj:null,           fmt:'rn'},
+    {label:'Room Revenue ($M)', v26:D.cur.rev, v25:D.ly.rev, v25adj:D.ly.revAdj,     fmt:'M'},
+    {label:'ADR (ARS)',    v26:D.cur.adr,    v25:D.ly.adr,    v25adj:D.ly.adrAdj,    fmt:'ars'},
+    {label:'RevPAR (ARS)', v26:D.cur.revpar, v25:D.ly.revpar, v25adj:D.ly.revparAdj, fmt:'ars'},
+  ];
+  document.getElementById('resumenBody').innerHTML = rows.map((r,ri)=>{
+    const bg=ri%2===0?'bg-white':'bg-slate-50';
+    const dNom=diff(r.v26,r.v25);
+    const clNom=dNom>=0?'text-green-600':'text-red-600', sgNom=dNom>=0?'▲':'▼';
+    let realCell = '<span class="text-slate-300">—</span>';
+    if(r.v25adj!==null){
+      const dReal=diff(r.v26,r.v25adj);
+      const clReal=dReal>=0?'text-green-600':'text-red-600', sgReal=dReal>=0?'▲':'▼';
+      realCell = `<span class="${clReal} text-xs font-bold">${sgReal}${Math.abs(dReal).toFixed(1)}%</span>`;
+    }
+    return `<tr class="${bg} border-b border-slate-100">
+      <td class="px-4 py-2.5 font-semibold text-slate-700">${r.label}</td>
+      <td class="px-4 py-2.5 text-right font-bold text-slate-800">${fmt(r.v26,r.fmt)}</td>
+      <td class="px-4 py-2.5 text-right text-slate-500">${fmt(r.v25,r.fmt)}</td>
+      <td class="px-4 py-2.5 text-right"><span class="${clNom} text-xs font-bold">${sgNom}${Math.abs(dNom).toFixed(1)}%</span></td>
+      <td class="px-4 py-2.5 text-right">${realCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FILTROS
+// ══════════════════════════════════════════════════════════════════
+function setComp(v,btn){
+  compMode=v;
+  ['btnLY','btnInf'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
+
+function renderAll(){
+  buildKPIs(); buildRevenue(); buildOccAdr(); buildRevpar();
+  buildInflacion(); buildCanal(); buildPromo(); buildBookingAnalisis(); buildTabla();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+document.getElementById('footerDate').textContent=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
+renderAll();
+</script>
+</body>
+</html>
